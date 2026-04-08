@@ -1,0 +1,21 @@
+name: Publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "8.0.x" }
+      - run: dotnet test
+      - run: dotnet pack src/Cyphera/Cyphera.csproj -c Release -o ./nupkg
+      - run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json
