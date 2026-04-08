@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace Cyphera
 {
-    public class CypheraClient
+    public class Cyphera
     {
         private static readonly Dictionary<string, string> Alphabets = new()
         {
@@ -23,27 +23,22 @@ namespace Cyphera
         private readonly Dictionary<string, string> _tagIndex = new();
         private readonly Dictionary<string, byte[]> _keys = new();
 
-        public CypheraClient(JsonElement config)
+        private Cyphera(JsonElement config)
         {
             LoadKeys(config);
             LoadPolicies(config);
         }
 
-        public CypheraClient(Dictionary<string, object> config)
+        public static Cyphera FromConfig(JsonElement config) => new Cyphera(config);
+
+        public static Cyphera FromConfig(Dictionary<string, object> config)
         {
             var json = JsonSerializer.Serialize(config);
             var doc = JsonDocument.Parse(json);
-            LoadKeys(doc.RootElement);
-            LoadPolicies(doc.RootElement);
+            return new Cyphera(doc.RootElement);
         }
 
-        private CypheraClient(JsonDocument doc)
-        {
-            LoadKeys(doc.RootElement);
-            LoadPolicies(doc.RootElement);
-        }
-
-        public static CypheraClient Load()
+        public static Cyphera Load()
         {
             var envPath = Environment.GetEnvironmentVariable("CYPHERA_POLICY_FILE");
             if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
@@ -56,11 +51,11 @@ namespace Cyphera
                 "No policy file found. Checked: CYPHERA_POLICY_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json");
         }
 
-        public static CypheraClient FromFile(string path)
+        public static Cyphera FromFile(string path)
         {
             var json = File.ReadAllText(path);
             var doc = JsonDocument.Parse(json);
-            return new CypheraClient(doc);
+            return new Cyphera(doc.RootElement);
         }
 
         public string Protect(string value, string policyName)
@@ -87,7 +82,7 @@ namespace Cyphera
             // Tag-based lookup — longest tags first
             foreach (var tag in _tagIndex.Keys.OrderByDescending(t => t.Length))
             {
-                if (protectedValue.StartsWith(tag))
+                if (protectedValue.Length > tag.Length && protectedValue.StartsWith(tag))
                 {
                     var policy = GetPolicy(_tagIndex[tag]);
                     return AccessFpe(protectedValue, policy);

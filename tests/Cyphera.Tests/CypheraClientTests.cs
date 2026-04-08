@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Cyphera.Tests
 {
-    public class CypheraClientTests
+    public class CypheraTests
     {
         private static readonly string ConfigJson = @"{
             ""policies"": {
@@ -17,10 +17,10 @@ namespace Cyphera.Tests
             }
         }";
 
-        private static CypheraClient CreateClient()
+        private static Cyphera CreateClient()
         {
             var doc = JsonDocument.Parse(ConfigJson);
-            return new CypheraClient(doc.RootElement);
+            return Cyphera.FromConfig(doc.RootElement);
         }
 
         [Fact]
@@ -101,7 +101,7 @@ namespace Cyphera.Tests
                 ""keys"": { ""k"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" } }
             }";
             var doc = JsonDocument.Parse(json);
-            var ex = Assert.Throws<ArgumentException>(() => new CypheraClient(doc.RootElement));
+            var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
             Assert.Contains("Tag collision", ex.Message);
         }
 
@@ -113,7 +113,7 @@ namespace Cyphera.Tests
                 ""keys"": { ""k"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" } }
             }";
             var doc = JsonDocument.Parse(json);
-            var ex = Assert.Throws<ArgumentException>(() => new CypheraClient(doc.RootElement));
+            var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
             Assert.Contains("no tag specified", ex.Message);
         }
 

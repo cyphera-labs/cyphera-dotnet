@@ -17,10 +17,10 @@ dotnet add package Cyphera
 using Cyphera;
 
 // Auto-discover: checks CYPHERA_POLICY_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json
-var c = CypheraClient.Load();
+var c = Cyphera.Load();
 
 // Or load from a specific file
-var c = CypheraClient.FromFile("./config/cyphera.json");
+var c = Cyphera.FromFile("./config/cyphera.json");
 
 // Or inline config
 var json = JsonDocument.Parse(@"{
@@ -31,7 +31,7 @@ var json = JsonDocument.Parse(@"{
     ""my-key"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" }
   }
 }");
-var c = new CypheraClient(json.RootElement);
+var c = Cyphera.FromConfig(json.RootElement);
 
 // Protect
 var encrypted = c.Protect("123-45-6789", "ssn");
