@@ -125,15 +125,13 @@ namespace Cyphera
             int blocks = (d + 15) / 16;
             byte[] outBuf = new byte[blocks * 16];
             Array.Copy(R, 0, outBuf, 0, 16);
-            byte[] prev = (byte[])R.Clone();
             for (int j = 1; j < blocks; j++)
             {
                 byte[] x = new byte[16];
                 x[12] = (byte)(j >> 24); x[13] = (byte)(j >> 16); x[14] = (byte)(j >> 8); x[15] = (byte)j;
-                for (int k = 0; k < 16; k++) x[k] ^= prev[k];
+                for (int k = 0; k < 16; k++) x[k] ^= R[k];
                 var enc = AesEcb(x);
                 Array.Copy(enc, 0, outBuf, j * 16, 16);
-                prev = enc;
             }
             return outBuf[..d];
         }
