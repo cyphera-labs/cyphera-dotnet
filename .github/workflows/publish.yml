@@ -4,6 +4,10 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish:
     name: Publish to NuGet
@@ -14,4 +18,4 @@ jobs:
         with: { dotnet-version: "8.0.x" }
       - run: dotnet test
       - run: dotnet pack src/Cyphera/Cyphera.csproj -c Release -o ./nupkg
-      - run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - run: dotnet nuget push ./nupkg/*.nupkg --source https://api.nuget.org/v3/index.json
