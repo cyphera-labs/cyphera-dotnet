@@ -257,18 +257,67 @@ namespace Cyphera
             return Alphabets.TryGetValue(name, out var alpha) ? alpha : name;
         }
 
+        private static readonly HashSet<string> CloudSources = new() { "aws-kms", "gcp-kms", "azure-kv", "vault" };
+
         private void LoadKeys(JsonElement root)
         {
             if (!root.TryGetProperty("keys", out var keysEl)) return;
             foreach (var kv in keysEl.EnumerateObject())
             {
-                string material;
+                var name = kv.Name;
                 if (kv.Value.ValueKind == JsonValueKind.String)
-                    material = kv.Value.GetString()!;
+                {
+                    _keys[name] = Convert.FromHexString(kv.Value.GetString()!);
+                }
+                else if (kv.Value.TryGetProperty("material", out var mat))
+                {
+                    _keys[name] = Convert.FromHexString(mat.GetString()!);
+                }
+                else if (kv.Value.TryGetProperty("source", out var src))
+                {
+                    _keys[name] = ResolveKeySource(name, src.GetString()!, kv.Value);
+                }
                 else
-                    material = kv.Value.GetProperty("material").GetString()!;
-                _keys[kv.Name] = Convert.FromHexString(material);
+                {
+                    throw new ArgumentException($"Key '{name}' must have either 'material' or 'source'");
+                }
             }
+        }
+
+        private static byte[] ResolveKeySource(string name, string source, JsonElement config)
+        {
+            if (source == "env")
+            {
+                var varName = config.GetProperty("var").GetString()
+                    ?? throw new ArgumentException($"Key '{name}': source 'env' requires 'var' field");
+                var val = Environment.GetEnvironmentVariable(varName)
+                    ?? throw new ArgumentException($"Key '{name}': environment variable '{varName}' is not set");
+                var encoding = config.TryGetProperty("encoding", out var enc) ? enc.GetString() : "hex";
+                return encoding == "base64" ? Convert.FromBase64String(val) : Convert.FromHexString(val);
+            }
+
+            if (source == "file")
+            {
+                var path = config.GetProperty("path").GetString()
+                    ?? throw new ArgumentException($"Key '{name}': source 'file' requires 'path' field");
+                var raw = File.ReadAllText(path).Trim();
+                var encoding = config.TryGetProperty("encoding", out var enc) ? enc.GetString()
+                    : (path.EndsWith(".b64") || path.EndsWith(".base64") ? "base64" : "hex");
+                return encoding == "base64" ? Convert.FromBase64String(raw) : Convert.FromHexString(raw);
+            }
+
+            if (CloudSources.Contains(source))
+            {
+                var resolverType = Type.GetType("Cyphera.Keychain.KeychainResolver, Cyphera.Keychain");
+                if (resolverType == null)
+                    throw new InvalidOperationException(
+                        $"Key '{name}' requires source '{source}' but Cyphera.Keychain is not installed.\n" +
+                        "Install it: dotnet add package Cyphera.Keychain");
+                var method = resolverType.GetMethod("Resolve", new[] { typeof(string), typeof(JsonElement) })!;
+                return (byte[])method.Invoke(null, new object[] { source, config })!;
+            }
+
+            throw new ArgumentException($"Key '{name}': unknown source '{source}'. Valid: env, file, {string.Join(", ", CloudSources)}");
         }
 
         private void LoadPolicies(JsonElement root)
