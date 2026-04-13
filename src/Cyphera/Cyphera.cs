@@ -76,7 +76,7 @@ namespace Cyphera
             if (policyName != null)
             {
                 var policy = GetPolicy(policyName);
-                return AccessFpe(protectedValue, policy);
+                return AccessFpe(protectedValue, policy, explicitPolicy: true);
             }
 
             // Tag-based lookup — longest tags first
@@ -122,7 +122,7 @@ namespace Cyphera
             return result;
         }
 
-        private string AccessFpe(string protectedValue, PolicyEntry policy)
+        private string AccessFpe(string protectedValue, PolicyEntry policy, bool explicitPolicy = false)
         {
             if (policy.Engine != "ff1" && policy.Engine != "ff3")
                 throw new ArgumentException($"Cannot reverse '{policy.Engine}' — not reversible");
@@ -131,7 +131,7 @@ namespace Cyphera
             var alphabet = policy.Alphabet;
 
             var withoutTag = protectedValue;
-            if (policy.TagEnabled && policy.Tag != null)
+            if (!explicitPolicy && policy.TagEnabled && policy.Tag != null)
                 withoutTag = protectedValue[policy.Tag.Length..];
 
             var (encryptable, positions, chars) = ExtractPassthroughs(withoutTag, alphabet);
