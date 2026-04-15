@@ -1,6 +1,7 @@
 # Cyphera
 
 [![CI](https://github.com/cyphera-labs/cyphera-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-dotnet/actions/workflows/ci.yml)
+[![Security](https://github.com/cyphera-labs/cyphera-dotnet/actions/workflows/codeql.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-dotnet/actions/workflows/codeql.yml)
 [![NuGet](https://img.shields.io/nuget/v/Cyphera)](https://www.nuget.org/packages/Cyphera)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Cyphera)](https://www.nuget.org/packages/Cyphera)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
