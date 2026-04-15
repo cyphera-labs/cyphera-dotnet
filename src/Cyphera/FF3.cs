@@ -113,6 +113,8 @@ namespace Cyphera
         {
             using var aes = Aes.Create();
             aes.Key = _key;
+            // NIST SP 800-38G requires AES-ECB as the PRF for FF1/FF3 Feistel rounds.
+            // This is single-block encryption used as a building block, not ECB mode applied to user data.
             aes.Mode = CipherMode.ECB;
             aes.Padding = PaddingMode.None;
             return aes.EncryptEcb(block, PaddingMode.None);
