@@ -6,11 +6,11 @@ namespace Cyphera.Tests
     public class CypheraTests
     {
         private static readonly string ConfigJson = @"{
-            ""policies"": {
-                ""ssn"": { ""engine"": ""ff1"", ""key_ref"": ""test-key"", ""tag"": ""T01"" },
-                ""ssn_digits"": { ""engine"": ""ff1"", ""alphabet"": ""digits"", ""tag_enabled"": false, ""key_ref"": ""test-key"" },
-                ""ssn_mask"": { ""engine"": ""mask"", ""pattern"": ""last4"", ""tag_enabled"": false },
-                ""ssn_hash"": { ""engine"": ""hash"", ""algorithm"": ""sha256"", ""key_ref"": ""test-key"", ""tag_enabled"": false }
+            ""configurations"": {
+                ""ssn"": { ""engine"": ""ff1"", ""key_ref"": ""test-key"", ""header"": ""T01"" },
+                ""ssn_digits"": { ""engine"": ""ff1"", ""alphabet"": ""digits"", ""header_enabled"": false, ""key_ref"": ""test-key"" },
+                ""ssn_mask"": { ""engine"": ""mask"", ""pattern"": ""last4"", ""header_enabled"": false },
+                ""ssn_hash"": { ""engine"": ""hash"", ""algorithm"": ""sha256"", ""key_ref"": ""test-key"", ""header_enabled"": false }
             },
             ""keys"": {
                 ""test-key"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" }
@@ -24,7 +24,7 @@ namespace Cyphera.Tests
         }
 
         [Fact]
-        public void ProtectAccessWithTag()
+        public void ProtectAccessWithHeader()
         {
             var c = CreateClient();
             var protected_ = c.Protect("123456789", "ssn");
@@ -45,7 +45,7 @@ namespace Cyphera.Tests
         }
 
         [Fact]
-        public void UntaggedDigitsRoundtrip()
+        public void UnheaderedDigitsRoundtrip()
         {
             var c = CreateClient();
             var protected_ = c.Protect("123456789", "ssn_digits");
@@ -87,34 +87,34 @@ namespace Cyphera.Tests
             var c = CreateClient();
             var masked = c.Protect("123-45-6789", "ssn_mask");
             var ex = Assert.Throws<ArgumentException>(() => c.Access(masked));
-            Assert.Contains("No matching tag", ex.Message);
+            Assert.Contains("No matching header", ex.Message);
         }
 
         [Fact]
-        public void TagCollisionRaises()
+        public void HeaderCollisionRaises()
         {
             var json = @"{
-                ""policies"": {
-                    ""a"": { ""engine"": ""ff1"", ""key_ref"": ""k"", ""tag"": ""ABC"" },
-                    ""b"": { ""engine"": ""ff1"", ""key_ref"": ""k"", ""tag"": ""ABC"" }
+                ""configurations"": {
+                    ""a"": { ""engine"": ""ff1"", ""key_ref"": ""k"", ""header"": ""ABC"" },
+                    ""b"": { ""engine"": ""ff1"", ""key_ref"": ""k"", ""header"": ""ABC"" }
                 },
                 ""keys"": { ""k"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" } }
             }";
             var doc = JsonDocument.Parse(json);
             var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
-            Assert.Contains("Tag collision", ex.Message);
+            Assert.Contains("Header collision", ex.Message);
         }
 
         [Fact]
-        public void TagRequiredRaises()
+        public void HeaderRequiredRaises()
         {
             var json = @"{
-                ""policies"": { ""a"": { ""engine"": ""ff1"", ""key_ref"": ""k"" } },
+                ""configurations"": { ""a"": { ""engine"": ""ff1"", ""key_ref"": ""k"" } },
                 ""keys"": { ""k"": { ""material"": ""2B7E151628AED2A6ABF7158809CF4F3C"" } }
             }";
             var doc = JsonDocument.Parse(json);
             var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
-            Assert.Contains("no tag specified", ex.Message);
+            Assert.Contains("no header specified", ex.Message);
         }
 
         [Fact]

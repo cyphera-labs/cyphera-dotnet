@@ -7,10 +7,10 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Cyphera</PackageId>
-    <Version>0.0.1-alpha.1</Version>
+    <Version>0.0.2-alpha.1</Version>
     <Authors>Horizon Digital Engineering</Authors>
     <Company>Horizon Digital Engineering LLC</Company>
-    <Description>Data protection SDK for .NET. Format-preserving encryption (FF1/FF3), masking, hashing. Policy-driven protect/access API.</Description>
+    <Description>Data protection SDK for .NET. Format-preserving encryption (FF1/FF3), masking, hashing. Configuration-driven protect/access API.</Description>
     <PackageTags>encryption;fpe;format-preserving;ff1;ff3;data-protection;masking;hashing</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/cyphera-labs/cyphera-dotnet</PackageProjectUrl>

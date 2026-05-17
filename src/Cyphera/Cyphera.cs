@@ -19,14 +19,14 @@ namespace Cyphera
             ["alphanumeric"] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
         };
 
-        private readonly Dictionary<string, PolicyEntry> _policies = new();
-        private readonly Dictionary<string, string> _tagIndex = new();
+        private readonly Dictionary<string, Configuration> _configurations = new();
+        private readonly Dictionary<string, string> _headerIndex = new();
         private readonly Dictionary<string, byte[]> _keys = new();
 
         private Cyphera(JsonElement config)
         {
             LoadKeys(config);
-            LoadPolicies(config);
+            LoadConfigurations(config);
         }
 
         public static Cyphera FromConfig(JsonElement config) => new Cyphera(config);
@@ -40,7 +40,7 @@ namespace Cyphera
 
         public static Cyphera Load()
         {
-            var envPath = Environment.GetEnvironmentVariable("CYPHERA_POLICY_FILE");
+            var envPath = Environment.GetEnvironmentVariable("CYPHERA_CONFIG_FILE");
             if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
                 return FromFile(envPath);
             if (File.Exists("cyphera.json"))
@@ -48,7 +48,7 @@ namespace Cyphera
             if (File.Exists("/etc/cyphera/cyphera.json"))
                 return FromFile("/etc/cyphera/cyphera.json");
             throw new FileNotFoundException(
-                "No policy file found. Checked: CYPHERA_POLICY_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json");
+                "No configuration file found. Checked: CYPHERA_CONFIG_FILE env, ./cyphera.json, /etc/cyphera/cyphera.json");
         }
 
         public static Cyphera FromFile(string path)
@@ -58,46 +58,51 @@ namespace Cyphera
             return new Cyphera(doc.RootElement);
         }
 
-        public string Protect(string value, string policyName)
+        public string Protect(string value, string configurationName)
         {
-            var policy = GetPolicy(policyName);
-            return policy.Engine switch
+            var configuration = GetConfiguration(configurationName);
+            return configuration.Engine switch
             {
-                "ff1" => ProtectFpe(value, policy, false),
-                "ff3" => ProtectFpe(value, policy, true),
-                "mask" => ProtectMask(value, policy),
-                "hash" => ProtectHash(value, policy),
-                _ => throw new ArgumentException($"Unknown engine: {policy.Engine}")
+                "ff1" => ProtectFpe(value, configuration, false),
+                "ff3" => ProtectFpe(value, configuration, true),
+                "mask" => ProtectMask(value, configuration),
+                "hash" => ProtectHash(value, configuration),
+                _ => throw new ArgumentException($"Unknown engine: {configuration.Engine}")
             };
         }
 
-        public string Access(string protectedValue, string? policyName = null)
+        public string Access(string protectedValue, string? configurationName = null)
         {
-            if (policyName != null)
+            if (configurationName != null)
             {
-                var policy = GetPolicy(policyName);
-                return AccessFpe(protectedValue, policy, explicitPolicy: true);
+                var configuration = GetConfiguration(configurationName);
+                return AccessFpe(protectedValue, configuration, explicitConfiguration: true);
             }
 
-            // Tag-based lookup — longest tags first
-            foreach (var tag in _tagIndex.Keys.OrderByDescending(t => t.Length))
+            return AccessByHeader(protectedValue);
+        }
+
+        public string AccessByHeader(string protectedValue)
+        {
+            // Header-based lookup — longest headers first
+            foreach (var header in _headerIndex.Keys.OrderByDescending(h => h.Length))
             {
-                if (protectedValue.Length > tag.Length && protectedValue.StartsWith(tag))
+                if (protectedValue.Length > header.Length && protectedValue.StartsWith(header))
                 {
-                    var policy = GetPolicy(_tagIndex[tag]);
-                    return AccessFpe(protectedValue, policy);
+                    var configuration = GetConfiguration(_headerIndex[header]);
+                    return AccessFpe(protectedValue, configuration);
                 }
             }
 
-            throw new ArgumentException("No matching tag found. Use Access(value, policyName) for untagged values.");
+            throw new ArgumentException("No matching header found. Use Access(value, configurationName) for values without a header.");
         }
 
         // ── FPE ──
 
-        private string ProtectFpe(string value, PolicyEntry policy, bool isFF3)
+        private string ProtectFpe(string value, Configuration configuration, bool isFF3)
         {
-            var key = ResolveKey(policy.KeyRef);
-            var alphabet = policy.Alphabet;
+            var key = ResolveKey(configuration.KeyRef);
+            var alphabet = configuration.Alphabet;
 
             var (encryptable, positions, chars) = ExtractPassthroughs(value, alphabet);
             if (encryptable.Length == 0)
@@ -117,27 +122,27 @@ namespace Cyphera
 
             var result = ReinsertPassthroughs(encrypted, positions, chars);
 
-            if (policy.TagEnabled && policy.Tag != null)
-                return policy.Tag + result;
+            if (configuration.HeaderEnabled && configuration.Header != null)
+                return configuration.Header + result;
             return result;
         }
 
-        private string AccessFpe(string protectedValue, PolicyEntry policy, bool explicitPolicy = false)
+        private string AccessFpe(string protectedValue, Configuration configuration, bool explicitConfiguration = false)
         {
-            if (policy.Engine != "ff1" && policy.Engine != "ff3")
-                throw new ArgumentException($"Cannot reverse '{policy.Engine}' — not reversible");
+            if (configuration.Engine != "ff1" && configuration.Engine != "ff3")
+                throw new ArgumentException($"Cannot reverse '{configuration.Engine}' — not reversible");
 
-            var key = ResolveKey(policy.KeyRef);
-            var alphabet = policy.Alphabet;
+            var key = ResolveKey(configuration.KeyRef);
+            var alphabet = configuration.Alphabet;
 
-            var withoutTag = protectedValue;
-            if (!explicitPolicy && policy.TagEnabled && policy.Tag != null)
-                withoutTag = protectedValue[policy.Tag.Length..];
+            var withoutHeader = protectedValue;
+            if (!explicitConfiguration && configuration.HeaderEnabled && configuration.Header != null)
+                withoutHeader = protectedValue[configuration.Header.Length..];
 
-            var (encryptable, positions, chars) = ExtractPassthroughs(withoutTag, alphabet);
+            var (encryptable, positions, chars) = ExtractPassthroughs(withoutHeader, alphabet);
 
             string decrypted;
-            if (policy.Engine == "ff3")
+            if (configuration.Engine == "ff3")
             {
                 var cipher = new FF3(key, new byte[8], alphabet);
                 decrypted = cipher.Decrypt(encryptable);
@@ -153,13 +158,13 @@ namespace Cyphera
 
         // ── Mask ──
 
-        private static string ProtectMask(string value, PolicyEntry policy)
+        private static string ProtectMask(string value, Configuration configuration)
         {
-            if (string.IsNullOrEmpty(policy.Pattern))
-                throw new ArgumentException("Mask policy requires 'pattern'");
+            if (string.IsNullOrEmpty(configuration.Pattern))
+                throw new ArgumentException("Mask configuration requires 'pattern'");
 
             int len = value.Length;
-            return policy.Pattern switch
+            return configuration.Pattern switch
             {
                 "last4" or "last_4" => new string('*', Math.Max(0, len - 4)) + value[^Math.Min(4, len)..],
                 "last2" or "last_2" => new string('*', Math.Max(0, len - 2)) + value[^Math.Min(2, len)..],
@@ -171,28 +176,28 @@ namespace Cyphera
 
         // ── Hash ──
 
-        private string ProtectHash(string value, PolicyEntry policy)
+        private string ProtectHash(string value, Configuration configuration)
         {
-            var algo = policy.Algorithm.Replace("-", "").ToLowerInvariant();
+            var algo = configuration.Algorithm.Replace("-", "").ToLowerInvariant();
             var hashName = algo switch
             {
                 "sha256" => HashAlgorithmName.SHA256,
                 "sha384" => HashAlgorithmName.SHA384,
                 "sha512" => HashAlgorithmName.SHA512,
-                _ => throw new ArgumentException($"Unsupported hash algorithm: {policy.Algorithm}")
+                _ => throw new ArgumentException($"Unsupported hash algorithm: {configuration.Algorithm}")
             };
 
             var data = Encoding.UTF8.GetBytes(value);
 
-            if (!string.IsNullOrEmpty(policy.KeyRef))
+            if (!string.IsNullOrEmpty(configuration.KeyRef))
             {
-                var key = ResolveKey(policy.KeyRef);
+                var key = ResolveKey(configuration.KeyRef);
                 using var hmac = algo switch
                 {
                     "sha256" => (HMAC)new HMACSHA256(key),
                     "sha384" => new HMACSHA384(key),
                     "sha512" => new HMACSHA512(key),
-                    _ => throw new ArgumentException($"Unsupported hash algorithm: {policy.Algorithm}")
+                    _ => throw new ArgumentException($"Unsupported hash algorithm: {configuration.Algorithm}")
                 };
                 return Convert.ToHexString(hmac.ComputeHash(data)).ToLowerInvariant();
             }
@@ -203,17 +208,17 @@ namespace Cyphera
 
         // ── Helpers ──
 
-        private PolicyEntry GetPolicy(string name)
+        private Configuration GetConfiguration(string name)
         {
-            if (!_policies.TryGetValue(name, out var policy))
-                throw new ArgumentException($"Unknown policy: {name}");
-            return policy;
+            if (!_configurations.TryGetValue(name, out var configuration))
+                throw new ArgumentException($"Unknown configuration: {name}");
+            return configuration;
         }
 
         private byte[] ResolveKey(string? keyRef)
         {
             if (string.IsNullOrEmpty(keyRef))
-                throw new ArgumentException("No key_ref in policy");
+                throw new ArgumentException("No key_ref in configuration");
             if (!_keys.TryGetValue(keyRef, out var key))
                 throw new ArgumentException($"Unknown key: {keyRef}");
             return key;
@@ -320,32 +325,32 @@ namespace Cyphera
             throw new ArgumentException($"Key '{name}': unknown source '{source}'. Valid: env, file, {string.Join(", ", CloudSources)}");
         }
 
-        private void LoadPolicies(JsonElement root)
+        private void LoadConfigurations(JsonElement root)
         {
-            if (!root.TryGetProperty("policies", out var policiesEl)) return;
-            foreach (var kv in policiesEl.EnumerateObject())
+            if (!root.TryGetProperty("configurations", out var configurationsEl)) return;
+            foreach (var kv in configurationsEl.EnumerateObject())
             {
                 var p = kv.Value;
-                bool tagEnabled = !p.TryGetProperty("tag_enabled", out var te) || te.GetBoolean();
-                string? tag = p.TryGetProperty("tag", out var tv) ? tv.GetString() : null;
+                bool headerEnabled = !p.TryGetProperty("header_enabled", out var he) || he.GetBoolean();
+                string? header = p.TryGetProperty("header", out var hv) ? hv.GetString() : null;
 
-                if (tagEnabled && string.IsNullOrEmpty(tag))
-                    throw new ArgumentException($"Policy '{kv.Name}' has tag_enabled=true but no tag specified");
+                if (headerEnabled && string.IsNullOrEmpty(header))
+                    throw new ArgumentException($"Configuration '{kv.Name}' has header_enabled=true but no header specified");
 
-                if (tagEnabled && tag != null)
+                if (headerEnabled && header != null)
                 {
-                    if (_tagIndex.ContainsKey(tag))
-                        throw new ArgumentException($"Tag collision: '{tag}' used by both '{_tagIndex[tag]}' and '{kv.Name}'");
-                    _tagIndex[tag] = kv.Name;
+                    if (_headerIndex.ContainsKey(header))
+                        throw new ArgumentException($"Header collision: '{header}' used by both '{_headerIndex[header]}' and '{kv.Name}'");
+                    _headerIndex[header] = kv.Name;
                 }
 
-                _policies[kv.Name] = new PolicyEntry
+                _configurations[kv.Name] = new Configuration
                 {
                     Engine = GetStr(p, "engine") ?? "ff1",
                     Alphabet = ResolveAlphabet(GetStr(p, "alphabet")),
                     KeyRef = GetStr(p, "key_ref"),
-                    Tag = tag,
-                    TagEnabled = tagEnabled,
+                    Header = header,
+                    HeaderEnabled = headerEnabled,
                     Pattern = GetStr(p, "pattern"),
                     Algorithm = GetStr(p, "algorithm") ?? "sha256",
                 };
@@ -357,13 +362,13 @@ namespace Cyphera
             return el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
         }
 
-        private class PolicyEntry
+        private class Configuration
         {
             public string Engine { get; init; } = "ff1";
             public string Alphabet { get; init; } = "";
             public string? KeyRef { get; init; }
-            public string? Tag { get; init; }
-            public bool TagEnabled { get; init; } = true;
+            public string? Header { get; init; }
+            public bool HeaderEnabled { get; init; } = true;
             public string? Pattern { get; init; }
             public string Algorithm { get; init; } = "sha256";
         }
