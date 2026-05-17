@@ -76,7 +76,10 @@ namespace Cyphera
             if (configurationName != null)
             {
                 var configuration = GetConfiguration(configurationName);
-                return AccessFpe(protectedValue, configuration, explicitConfiguration: true);
+                if (configuration.HeaderEnabled)
+                    throw new ArgumentException(
+                        $"configuration '{configurationName}' has header_enabled=true; use Access(value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only.");
+                return AccessFpe(protectedValue, configuration);
             }
 
             return AccessByHeader(protectedValue);
@@ -90,7 +93,9 @@ namespace Cyphera
                 if (protectedValue.Length > header.Length && protectedValue.StartsWith(header))
                 {
                     var configuration = GetConfiguration(_headerIndex[header]);
-                    return AccessFpe(protectedValue, configuration);
+                    // Strip the header here so AccessFpe always receives raw headerless ciphertext.
+                    var stripped = protectedValue[header.Length..];
+                    return AccessFpe(stripped, configuration);
                 }
             }
 
@@ -127,7 +132,10 @@ namespace Cyphera
             return result;
         }
 
-        private string AccessFpe(string protectedValue, Configuration configuration, bool explicitConfiguration = false)
+        // Always assumes `protectedValue` is raw headerless ciphertext. Callers on the
+        // header path strip the header before calling; the explicit-name path is only
+        // valid for header_enabled=false configurations, so no header is present.
+        private string AccessFpe(string protectedValue, Configuration configuration)
         {
             if (configuration.Engine != "ff1" && configuration.Engine != "ff3")
                 throw new ArgumentException($"Cannot reverse '{configuration.Engine}' — not reversible");
@@ -135,11 +143,7 @@ namespace Cyphera
             var key = ResolveKey(configuration.KeyRef);
             var alphabet = configuration.Alphabet;
 
-            var withoutHeader = protectedValue;
-            if (!explicitConfiguration && configuration.HeaderEnabled && configuration.Header != null)
-                withoutHeader = protectedValue[configuration.Header.Length..];
-
-            var (encryptable, positions, chars) = ExtractPassthroughs(withoutHeader, alphabet);
+            var (encryptable, positions, chars) = ExtractPassthroughs(protectedValue, alphabet);
 
             string decrypted;
             if (configuration.Engine == "ff3")

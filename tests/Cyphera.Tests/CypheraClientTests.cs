@@ -134,5 +134,20 @@ namespace Cyphera.Tests
             var result = c.Protect("123-45-6789", "ssn");
             Assert.Equal("T01i6J-xF-07pX", result);
         }
+
+        // ── New error condition: 2-arg Access on headered config ──
+
+        [Fact]
+        public void TwoArgAccessOnHeaderedConfigRaises()
+        {
+            var c = CreateClient();
+            var protected_ = c.Protect("123-45-6789", "ssn");
+            // ssn has header_enabled=true; Access(value, "ssn") must error rather
+            // than silently return garbage. Callers should use Access(value) so
+            // the header identifies the configuration.
+            var ex = Assert.Throws<ArgumentException>(() => c.Access(protected_, "ssn"));
+            Assert.Contains("header_enabled=true", ex.Message);
+            Assert.Contains("ssn", ex.Message);
+        }
     }
 }
