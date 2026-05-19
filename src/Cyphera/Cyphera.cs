@@ -71,18 +71,15 @@ namespace Cyphera
             };
         }
 
-        public string Access(string protectedValue, string? configurationName = null)
+        public string Access(string protectedValue, string configurationName)
         {
-            if (configurationName != null)
-            {
-                var configuration = GetConfiguration(configurationName);
-                if (configuration.HeaderEnabled)
-                    throw new ArgumentException(
-                        $"configuration '{configurationName}' has header_enabled=true; use Access(value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only.");
-                return AccessFpe(protectedValue, configuration);
-            }
-
-            return AccessByHeader(protectedValue);
+            if (configurationName == null)
+                throw new ArgumentException("Access(value, configurationName) requires a configuration name. Use AccessByHeader(value) for header-based access.");
+            var configuration = GetConfiguration(configurationName);
+            if (configuration.HeaderEnabled)
+                throw new ArgumentException(
+                    $"configuration '{configurationName}' has header_enabled=true; use AccessByHeader(value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only.");
+            return AccessFpe(protectedValue, configuration);
         }
 
         public string AccessByHeader(string protectedValue)
@@ -348,6 +345,9 @@ namespace Cyphera
                     _headerIndex[header] = kv.Name;
                 }
 
+                int headerLength = p.TryGetProperty("header_length", out var hl) && hl.ValueKind == JsonValueKind.Number
+                    ? hl.GetInt32() : 3;
+
                 _configurations[kv.Name] = new Configuration
                 {
                     Engine = GetStr(p, "engine") ?? "ff1",
@@ -355,6 +355,7 @@ namespace Cyphera
                     KeyRef = GetStr(p, "key_ref"),
                     Header = header,
                     HeaderEnabled = headerEnabled,
+                    HeaderLength = headerLength,
                     Pattern = GetStr(p, "pattern"),
                     Algorithm = GetStr(p, "algorithm") ?? "sha256",
                 };
@@ -373,6 +374,7 @@ namespace Cyphera
             public string? KeyRef { get; init; }
             public string? Header { get; init; }
             public bool HeaderEnabled { get; init; } = true;
+            public int HeaderLength { get; init; } = 3;
             public string? Pattern { get; init; }
             public string Algorithm { get; init; } = "sha256";
         }

@@ -30,7 +30,7 @@ namespace Cyphera.Tests
             var protected_ = c.Protect("123456789", "ssn");
             Assert.StartsWith("T01", protected_);
             Assert.True(protected_.Length > "123456789".Length);
-            var accessed = c.Access(protected_);
+            var accessed = c.AccessByHeader(protected_);
             Assert.Equal("123456789", accessed);
         }
 
@@ -40,7 +40,7 @@ namespace Cyphera.Tests
             var c = CreateClient();
             var protected_ = c.Protect("123-45-6789", "ssn");
             Assert.Contains("-", protected_);
-            var accessed = c.Access(protected_);
+            var accessed = c.AccessByHeader(protected_);
             Assert.Equal("123-45-6789", accessed);
         }
 
@@ -86,7 +86,7 @@ namespace Cyphera.Tests
         {
             var c = CreateClient();
             var masked = c.Protect("123-45-6789", "ssn_mask");
-            var ex = Assert.Throws<ArgumentException>(() => c.Access(masked));
+            var ex = Assert.Throws<ArgumentException>(() => c.AccessByHeader(masked));
             Assert.Contains("No matching header", ex.Message);
         }
 
@@ -122,7 +122,7 @@ namespace Cyphera.Tests
         {
             var c = CreateClient();
             var protected_ = c.Protect("José123456", "ssn");
-            var accessed = c.Access(protected_);
+            var accessed = c.AccessByHeader(protected_);
             Assert.Equal("José123456", accessed);
         }
 
