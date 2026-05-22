@@ -33,9 +33,18 @@ namespace Cyphera
         private int[] ToDigits(string s) => s.Select(c => _charMap[c]).ToArray();
         private string FromDigits(int[] d) => new string(d.Select(i => _alphabet[i]).ToArray());
 
+        // NIST SP 800-38G: length >= 2 and radix^length >= 1,000,000.
+        private void CheckLength(int n)
+        {
+            if (n < 2 || BigInteger.Pow(_radix, n) < 1_000_000)
+                throw new ArgumentException(
+                    "input too short (NIST minimum: length >= 2 and radix^length >= 1,000,000)");
+        }
+
         private int[] FF1Encrypt(int[] pt, byte[] T)
         {
             int n = pt.Length, u = n / 2, v = n - u;
+            CheckLength(n);
             int[] A = pt[..u], B = pt[u..];
             int b = ComputeB(v);
             int d = 4 * ((b + 3) / 4) + 4;
@@ -58,6 +67,7 @@ namespace Cyphera
         private int[] FF1Decrypt(int[] ct, byte[] T)
         {
             int n = ct.Length, u = n / 2, v = n - u;
+            CheckLength(n);
             int[] A = ct[..u], B = ct[u..];
             int b = ComputeB(v);
             int d = 4 * ((b + 3) / 4) + 4;

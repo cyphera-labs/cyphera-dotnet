@@ -35,9 +35,22 @@ namespace Cyphera
         private int[] ToDigits(string s) => s.Select(c => _charMap[c]).ToArray();
         private string FromDigits(int[] d) => new string(d.Select(i => _alphabet[i]).ToArray());
 
+        // NIST SP 800-38G: length >= 2, radix^length >= 1,000,000, and
+        // length <= 2*floor(log_radix(2^96)).
+        private void CheckLength(int n)
+        {
+            if (n < 2 || BigInteger.Pow(_radix, n) < 1_000_000)
+                throw new ArgumentException(
+                    "input too short (NIST minimum: length >= 2 and radix^length >= 1,000,000)");
+            int maxLen = 2 * (int)System.Math.Floor(System.Math.Log(System.Math.Pow(2, 96)) / System.Math.Log(_radix));
+            if (n > maxLen)
+                throw new ArgumentException($"input too long (FF3 maximum for this radix is {maxLen})");
+        }
+
         private int[] FF3Encrypt(int[] pt)
         {
             int n = pt.Length, u = (n + 1) / 2, v = n - u;
+            CheckLength(n);
             int[] A = pt[..u], B = pt[u..];
 
             for (int i = 0; i < 8; i++)
@@ -66,6 +79,7 @@ namespace Cyphera
         private int[] FF3Decrypt(int[] ct)
         {
             int n = ct.Length, u = (n + 1) / 2, v = n - u;
+            CheckLength(n);
             int[] A = ct[..u], B = ct[u..];
 
             for (int i = 7; i >= 0; i--)
