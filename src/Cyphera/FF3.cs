@@ -145,4 +145,36 @@ namespace Cyphera
             return r;
         }
     }
+
+    /// <summary>
+    /// FF3-1 Format-Preserving Encryption (NIST SP 800-38G Revision 1).
+    ///
+    /// FF3-1 is FF3 with a 56-bit (7-byte) tweak. The tweak is expanded into
+    /// the 64-bit form the FF3 round function consumes; the algorithm is
+    /// identical FF3. FF3-1 supersedes the original FF3, which is
+    /// cryptographically weak.
+    /// </summary>
+    public class FF31
+    {
+        private readonly FF3 _inner;
+
+        public FF31(byte[] key, byte[] tweak, string alphabet = "0123456789abcdefghijklmnopqrstuvwxyz")
+        {
+            if (tweak.Length != 7)
+                throw new ArgumentException("FF3-1 tweak must be exactly 7 bytes (56 bits)");
+            _inner = new FF3(key, ExpandTweak(tweak), alphabet);
+        }
+
+        // Expand the 56-bit FF3-1 tweak into the 64-bit tweak the FF3 round
+        // function consumes (NIST SP 800-38G Rev 1): bytes[0..4] = T_L,
+        // bytes[4..8] = T_R.
+        private static byte[] ExpandTweak(byte[] t) => new byte[]
+        {
+            t[0], t[1], t[2], (byte)(t[3] & 0xF0),
+            t[4], t[5], t[6], (byte)((t[3] & 0x0F) << 4),
+        };
+
+        public string Encrypt(string plaintext) => _inner.Encrypt(plaintext);
+        public string Decrypt(string ciphertext) => _inner.Decrypt(ciphertext);
+    }
 }

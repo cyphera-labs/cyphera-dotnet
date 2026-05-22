@@ -63,8 +63,7 @@ namespace Cyphera
             var configuration = GetConfiguration(configurationName);
             return configuration.Engine switch
             {
-                "ff1" => ProtectFpe(value, configuration, false),
-                "ff3" => ProtectFpe(value, configuration, true),
+                "ff1" or "ff3" or "ff31" => ProtectFpe(value, configuration),
                 "mask" => ProtectMask(value, configuration),
                 "hash" => ProtectHash(value, configuration),
                 _ => throw new ArgumentException($"Unknown engine: {configuration.Engine}")
@@ -101,7 +100,24 @@ namespace Cyphera
 
         // ── FPE ──
 
-        private string ProtectFpe(string value, Configuration configuration, bool isFF3)
+        private static bool _ff3Warned = false;
+        private static readonly object _ff3WarnLock = new object();
+
+        // Emit the FF3 deprecation warning to stderr, once per process. Original
+        // FF3 is cryptographically weak; configurations should use 'ff31'.
+        private static void WarnFf3Deprecated()
+        {
+            lock (_ff3WarnLock)
+            {
+                if (!_ff3Warned)
+                {
+                    _ff3Warned = true;
+                    Console.Error.WriteLine("WARNING: engine 'ff3' is deprecated and cryptographically weak — migrate to 'ff31' (FF3-1).");
+                }
+            }
+        }
+
+        private string ProtectFpe(string value, Configuration configuration)
         {
             var key = ResolveKey(configuration.KeyRef);
             var alphabet = configuration.Alphabet;
@@ -111,9 +127,15 @@ namespace Cyphera
                 throw new ArgumentException("No encryptable characters in input");
 
             string encrypted;
-            if (isFF3)
+            if (configuration.Engine == "ff3")
             {
+                WarnFf3Deprecated();
                 var cipher = new FF3(key, new byte[8], alphabet);
+                encrypted = cipher.Encrypt(encryptable);
+            }
+            else if (configuration.Engine == "ff31")
+            {
+                var cipher = new FF31(key, new byte[7], alphabet);
                 encrypted = cipher.Encrypt(encryptable);
             }
             else
@@ -134,7 +156,7 @@ namespace Cyphera
         // valid for header_enabled=false configurations, so no header is present.
         private string AccessFpe(string protectedValue, Configuration configuration)
         {
-            if (configuration.Engine != "ff1" && configuration.Engine != "ff3")
+            if (configuration.Engine != "ff1" && configuration.Engine != "ff3" && configuration.Engine != "ff31")
                 throw new ArgumentException($"Cannot reverse '{configuration.Engine}' — not reversible");
 
             var key = ResolveKey(configuration.KeyRef);
@@ -145,7 +167,13 @@ namespace Cyphera
             string decrypted;
             if (configuration.Engine == "ff3")
             {
+                WarnFf3Deprecated();
                 var cipher = new FF3(key, new byte[8], alphabet);
+                decrypted = cipher.Decrypt(encryptable);
+            }
+            else if (configuration.Engine == "ff31")
+            {
+                var cipher = new FF31(key, new byte[7], alphabet);
                 decrypted = cipher.Decrypt(encryptable);
             }
             else
