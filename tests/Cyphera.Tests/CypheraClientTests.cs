@@ -50,8 +50,9 @@ namespace Cyphera.Tests
             var c = CreateClient();
             var protected_ = c.Protect("123456789", "ssn_digits");
             Assert.Equal(9, protected_.Length);
-            // ssn_digits has header_enabled=false, so the low-level Decrypt form applies.
-            var accessed = c.Decrypt(protected_, "ssn_digits");
+            // ssn_digits has header_enabled=false, so the 2-arg Access overload
+            // (escape hatch) is the way to round-trip without a header to key off.
+            var accessed = c.Access(protected_, "ssn_digits");
             Assert.Equal("123456789", accessed);
         }
 
@@ -138,19 +139,16 @@ namespace Cyphera.Tests
             Assert.Equal("T01i6J-xF-07pX", result);
         }
 
-        // ── Lower-level Decrypt(value, name) still rejects headered configs ──
+        // ── 2-arg Access overload (escape hatch) ──
 
         [Fact]
-        public void DecryptOnHeaderedConfigRaises()
+        public void TwoArgAccessOnIrreversibleConfigRaises()
         {
             var c = CreateClient();
-            var protected_ = c.Protect("123-45-6789", "ssn");
-            // ssn has header_enabled=true; the low-level Decrypt(value, "ssn") must
-            // error rather than silently return garbage. Callers should use Access(value)
-            // so the header identifies the configuration.
-            var ex = Assert.Throws<ArgumentException>(() => c.Decrypt(protected_, "ssn"));
-            Assert.Contains("header_enabled=true", ex.Message);
-            Assert.Contains("ssn", ex.Message);
+            // The 2-arg escape hatch is permissive about header_enabled but
+            // still must refuse mask/hash configurations — those are one-way.
+            var masked = c.Protect("123-45-6789", "ssn_mask");
+            Assert.Throws<ArgumentException>(() => c.Access(masked, "ssn_mask"));
         }
     }
 }

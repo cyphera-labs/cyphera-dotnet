@@ -90,19 +90,19 @@ namespace Cyphera
             throw new ArgumentException("No matching header found");
         }
 
-        // Decrypt a value using the named configuration. The configuration must
-        // have header_enabled = false — this lower-level form treats the input
-        // as raw headerless ciphertext. For headered configurations, use the
-        // high-level Access(value) which strips the header itself.
-        public string Decrypt(string ciphertext, string configurationName)
+        // Escape-hatch access for unique situations where the protected value
+        // has no header (mainframe formats, fixed-width legacy systems, etc.).
+        // The caller names the configuration explicitly and the value is
+        // decrypted as raw headerless ciphertext.
+        //
+        // Prefer the high-level Access(value) for normal use — this overload
+        // is not the primary API and is intentionally not promoted in examples.
+        public string Access(string protectedValue, string configurationName)
         {
             if (configurationName == null)
-                throw new ArgumentException("Decrypt requires a configuration name. Use Access(value) for header-based access.");
+                throw new ArgumentException("Access(value, configurationName) requires a configuration name.");
             var configuration = GetConfiguration(configurationName);
-            if (configuration.HeaderEnabled)
-                throw new ArgumentException(
-                    $"configuration '{configurationName}' has header_enabled=true; use Access(value) — the header identifies the configuration. The two-arg Decrypt(value, name) form is for header_enabled=false configurations only.");
-            return AccessFpe(ciphertext, configuration);
+            return AccessFpe(protectedValue, configuration);
         }
 
         // ── FPE ──
@@ -159,8 +159,9 @@ namespace Cyphera
         }
 
         // Always assumes `protectedValue` is raw headerless ciphertext. Callers on the
-        // header path strip the header before calling; the explicit-name path is only
-        // valid for header_enabled=false configurations, so no header is present.
+        // header path strip the header before calling; the explicit-name (escape hatch)
+        // path passes the value through unchanged — caller's responsibility to pass
+        // a headerless value.
         private string AccessFpe(string protectedValue, Configuration configuration)
         {
             if (configuration.Engine != "ff1" && configuration.Engine != "ff3" && configuration.Engine != "ff31")

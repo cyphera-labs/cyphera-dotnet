@@ -38,14 +38,9 @@ var c = Cyphera.FromConfig(json.RootElement);
 var encrypted = c.Protect("123-45-6789", "ssn");
 // → "T01i6J-xF-07pX" (DPH-prefixed, dashes preserved)
 
-// Access — single 1-arg method; the SDK uses the header to figure out the configuration
+// Access — the SDK uses the header to figure out the configuration
 var decrypted = c.Access(encrypted);
 // → "123-45-6789"
-
-// For header_enabled=false configurations, drop down to the lower-level
-// Decrypt(value, name) form. It treats the input as raw headerless ciphertext
-// and errors if called on a headered configuration.
-// var decrypted = c.Decrypt(encrypted, "ssn_unheadered");
 ```
 
 ## Engines
