@@ -70,20 +70,12 @@ namespace Cyphera
             };
         }
 
-        public string Access(string protectedValue, string configurationName)
+        // Reverse a protected value. The SDK uses the loaded configurations to
+        // figure out which one applies — it checks the leading bytes of
+        // protectedValue against the registered headers (longest first to avoid
+        // prefix collisions), strips the matched header, and decrypts.
+        public string Access(string protectedValue)
         {
-            if (configurationName == null)
-                throw new ArgumentException("Access(value, configurationName) requires a configuration name. Use AccessByHeader(value) for header-based access.");
-            var configuration = GetConfiguration(configurationName);
-            if (configuration.HeaderEnabled)
-                throw new ArgumentException(
-                    $"configuration '{configurationName}' has header_enabled=true; use AccessByHeader(value) — the header identifies the configuration. The two-arg form is for header_enabled=false configurations only.");
-            return AccessFpe(protectedValue, configuration);
-        }
-
-        public string AccessByHeader(string protectedValue)
-        {
-            // Header-based lookup — longest headers first
             foreach (var header in _headerIndex.Keys.OrderByDescending(h => h.Length))
             {
                 if (protectedValue.Length > header.Length && protectedValue.StartsWith(header))
@@ -95,7 +87,22 @@ namespace Cyphera
                 }
             }
 
-            throw new ArgumentException("No matching header found. Use Access(value, configurationName) for values without a header.");
+            throw new ArgumentException("No matching header found");
+        }
+
+        // Decrypt a value using the named configuration. The configuration must
+        // have header_enabled = false — this lower-level form treats the input
+        // as raw headerless ciphertext. For headered configurations, use the
+        // high-level Access(value) which strips the header itself.
+        public string Decrypt(string ciphertext, string configurationName)
+        {
+            if (configurationName == null)
+                throw new ArgumentException("Decrypt requires a configuration name. Use Access(value) for header-based access.");
+            var configuration = GetConfiguration(configurationName);
+            if (configuration.HeaderEnabled)
+                throw new ArgumentException(
+                    $"configuration '{configurationName}' has header_enabled=true; use Access(value) — the header identifies the configuration. The two-arg Decrypt(value, name) form is for header_enabled=false configurations only.");
+            return AccessFpe(ciphertext, configuration);
         }
 
         // ── FPE ──

@@ -30,7 +30,7 @@ namespace Cyphera.Tests
             var protected_ = c.Protect("123456789", "ssn");
             Assert.StartsWith("T01", protected_);
             Assert.True(protected_.Length > "123456789".Length);
-            var accessed = c.AccessByHeader(protected_);
+            var accessed = c.Access(protected_);
             Assert.Equal("123456789", accessed);
         }
 
@@ -40,7 +40,7 @@ namespace Cyphera.Tests
             var c = CreateClient();
             var protected_ = c.Protect("123-45-6789", "ssn");
             Assert.Contains("-", protected_);
-            var accessed = c.AccessByHeader(protected_);
+            var accessed = c.Access(protected_);
             Assert.Equal("123-45-6789", accessed);
         }
 
@@ -50,7 +50,8 @@ namespace Cyphera.Tests
             var c = CreateClient();
             var protected_ = c.Protect("123456789", "ssn_digits");
             Assert.Equal(9, protected_.Length);
-            var accessed = c.Access(protected_, "ssn_digits");
+            // ssn_digits has header_enabled=false, so the low-level Decrypt form applies.
+            var accessed = c.Decrypt(protected_, "ssn_digits");
             Assert.Equal("123456789", accessed);
         }
 
@@ -86,7 +87,9 @@ namespace Cyphera.Tests
         {
             var c = CreateClient();
             var masked = c.Protect("123-45-6789", "ssn_mask");
-            var ex = Assert.Throws<ArgumentException>(() => c.AccessByHeader(masked));
+            // ssn_mask has header_enabled=false, so Access() can't find a header
+            // and reports the no-matching-header error.
+            var ex = Assert.Throws<ArgumentException>(() => c.Access(masked));
             Assert.Contains("No matching header", ex.Message);
         }
 
@@ -122,7 +125,7 @@ namespace Cyphera.Tests
         {
             var c = CreateClient();
             var protected_ = c.Protect("José123456", "ssn");
-            var accessed = c.AccessByHeader(protected_);
+            var accessed = c.Access(protected_);
             Assert.Equal("José123456", accessed);
         }
 
@@ -135,17 +138,17 @@ namespace Cyphera.Tests
             Assert.Equal("T01i6J-xF-07pX", result);
         }
 
-        // ── New error condition: 2-arg Access on headered config ──
+        // ── Lower-level Decrypt(value, name) still rejects headered configs ──
 
         [Fact]
-        public void TwoArgAccessOnHeaderedConfigRaises()
+        public void DecryptOnHeaderedConfigRaises()
         {
             var c = CreateClient();
             var protected_ = c.Protect("123-45-6789", "ssn");
-            // ssn has header_enabled=true; Access(value, "ssn") must error rather
-            // than silently return garbage. Callers should use Access(value) so
-            // the header identifies the configuration.
-            var ex = Assert.Throws<ArgumentException>(() => c.Access(protected_, "ssn"));
+            // ssn has header_enabled=true; the low-level Decrypt(value, "ssn") must
+            // error rather than silently return garbage. Callers should use Access(value)
+            // so the header identifies the configuration.
+            var ex = Assert.Throws<ArgumentException>(() => c.Decrypt(protected_, "ssn"));
             Assert.Contains("header_enabled=true", ex.Message);
             Assert.Contains("ssn", ex.Message);
         }
