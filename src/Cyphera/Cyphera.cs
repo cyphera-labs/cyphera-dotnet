@@ -116,6 +116,20 @@ namespace Cyphera
 
         // ── FPE ──
 
+        // Require an exact-length tweak for FF3 / FF3-1. Missing or wrong-length
+        // tweaks are a hard error — no silent zero-fill. FF1 tweak is optional
+        // per NIST SP 800-38G and is handled separately.
+        private static byte[] RequireTweak(Configuration configuration, int expectedLen, string label)
+        {
+            var tweak = configuration.Tweak;
+            if (tweak == null || tweak.Length != expectedLen)
+            {
+                throw new ArgumentException(
+                    $"configuration '{configuration.Name}' is missing required 'tweak' ({label} needs {expectedLen} bytes)");
+            }
+            return tweak;
+        }
+
         private static bool _ff3Warned = false;
         private static readonly object _ff3WarnLock = new object();
 
@@ -146,17 +160,17 @@ namespace Cyphera
             if (configuration.Engine == "ff3")
             {
                 WarnFf3Deprecated();
-                var cipher = new FF3(key, new byte[8], alphabet);
+                var cipher = new FF3(key, RequireTweak(configuration, 8, "FF3"), alphabet);
                 encrypted = cipher.Encrypt(encryptable);
             }
             else if (configuration.Engine == "ff31")
             {
-                var cipher = new FF31(key, new byte[7], alphabet);
+                var cipher = new FF31(key, RequireTweak(configuration, 7, "FF3-1"), alphabet);
                 encrypted = cipher.Encrypt(encryptable);
             }
             else
             {
-                var cipher = new FF1(key, Array.Empty<byte>(), alphabet);
+                var cipher = new FF1(key, configuration.Tweak ?? Array.Empty<byte>(), alphabet);
                 encrypted = cipher.Encrypt(encryptable);
             }
 
@@ -187,17 +201,17 @@ namespace Cyphera
             if (configuration.Engine == "ff3")
             {
                 WarnFf3Deprecated();
-                var cipher = new FF3(key, new byte[8], alphabet);
+                var cipher = new FF3(key, RequireTweak(configuration, 8, "FF3"), alphabet);
                 decrypted = cipher.Decrypt(encryptable);
             }
             else if (configuration.Engine == "ff31")
             {
-                var cipher = new FF31(key, new byte[7], alphabet);
+                var cipher = new FF31(key, RequireTweak(configuration, 7, "FF3-1"), alphabet);
                 decrypted = cipher.Decrypt(encryptable);
             }
             else
             {
-                var cipher = new FF1(key, Array.Empty<byte>(), alphabet);
+                var cipher = new FF1(key, configuration.Tweak ?? Array.Empty<byte>(), alphabet);
                 decrypted = cipher.Decrypt(encryptable);
             }
 
@@ -395,14 +409,19 @@ namespace Cyphera
                 int headerLength = p.TryGetProperty("header_length", out var hl) && hl.ValueKind == JsonValueKind.Number
                     ? hl.GetInt32() : 3;
 
+                string? tweakHex = GetStr(p, "tweak");
+                byte[]? tweak = !string.IsNullOrEmpty(tweakHex) ? Convert.FromHexString(tweakHex) : null;
+
                 _configurations[kv.Name] = new Configuration
                 {
+                    Name = kv.Name,
                     Engine = GetStr(p, "engine") ?? "ff1",
                     Alphabet = ResolveAlphabet(GetStr(p, "alphabet")),
                     KeyRef = GetStr(p, "key_ref"),
                     Header = header,
                     HeaderEnabled = headerEnabled,
                     HeaderLength = headerLength,
+                    Tweak = tweak,
                     Pattern = GetStr(p, "pattern"),
                     Algorithm = GetStr(p, "algorithm") ?? "sha256",
                 };
@@ -416,12 +435,14 @@ namespace Cyphera
 
         private class Configuration
         {
+            public string Name { get; init; } = "";
             public string Engine { get; init; } = "ff1";
             public string Alphabet { get; init; } = "";
             public string? KeyRef { get; init; }
             public string? Header { get; init; }
             public bool HeaderEnabled { get; init; } = true;
             public int HeaderLength { get; init; } = 3;
+            public byte[]? Tweak { get; init; }
             public string? Pattern { get; init; }
             public string Algorithm { get; init; } = "sha256";
         }
