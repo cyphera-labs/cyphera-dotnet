@@ -15,7 +15,7 @@ namespace Cyphera
         public FF1(byte[] key, byte[] tweak, string alphabet = "0123456789abcdefghijklmnopqrstuvwxyz")
         {
             if (key.Length != 16 && key.Length != 24 && key.Length != 32)
-                throw new ArgumentException("Key must be 16, 24, or 32 bytes");
+                throw new ArgumentException($"invalid key length: {key.Length} (expected 16, 24, or 32)");
             if (alphabet.Length < 2)
                 throw new ArgumentException("Alphabet must have >= 2 chars");
 
@@ -30,7 +30,17 @@ namespace Cyphera
         public string Encrypt(string plaintext) => FromDigits(FF1Encrypt(ToDigits(plaintext), _tweak));
         public string Decrypt(string ciphertext) => FromDigits(FF1Decrypt(ToDigits(ciphertext), _tweak));
 
-        private int[] ToDigits(string s) => s.Select(c => _charMap[c]).ToArray();
+        private int[] ToDigits(string s)
+        {
+            var d = new int[s.Length];
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (!_charMap.TryGetValue(s[i], out var idx))
+                    throw new ArgumentException($"invalid char '{s[i]}' at position {i}");
+                d[i] = idx;
+            }
+            return d;
+        }
         private string FromDigits(int[] d) => new string(d.Select(i => _alphabet[i]).ToArray());
 
         // NIST SP 800-38G: length >= 2 and radix^length >= 1,000,000.

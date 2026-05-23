@@ -91,7 +91,7 @@ namespace Cyphera.Tests
             // ssn_mask has header_enabled=false, so Access() can't find a header
             // and reports the no-matching-header error.
             var ex = Assert.Throws<ArgumentException>(() => c.Access(masked));
-            Assert.Contains("No matching header", ex.Message);
+            Assert.Equal("no matching header found", ex.Message);
         }
 
         [Fact]
@@ -106,7 +106,7 @@ namespace Cyphera.Tests
             }";
             var doc = JsonDocument.Parse(json);
             var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
-            Assert.Contains("Header collision", ex.Message);
+            Assert.Equal("configuration error: header collision", ex.Message);
         }
 
         [Fact]
@@ -118,7 +118,7 @@ namespace Cyphera.Tests
             }";
             var doc = JsonDocument.Parse(json);
             var ex = Assert.Throws<ArgumentException>(() => Cyphera.FromConfig(doc.RootElement));
-            Assert.Contains("no header specified", ex.Message);
+            Assert.Equal("configuration error: header must be specified", ex.Message);
         }
 
         [Fact]
@@ -148,7 +148,8 @@ namespace Cyphera.Tests
             // The 2-arg escape hatch is permissive about header_enabled but
             // still must refuse mask/hash configurations — those are one-way.
             var masked = c.Protect("123-45-6789", "ssn_mask");
-            Assert.Throws<ArgumentException>(() => c.Access(masked, "ssn_mask"));
+            var ex = Assert.Throws<ArgumentException>(() => c.Access(masked, "ssn_mask"));
+            Assert.Equal("cannot reverse 'ssn_mask' — mask is irreversible", ex.Message);
         }
     }
 }

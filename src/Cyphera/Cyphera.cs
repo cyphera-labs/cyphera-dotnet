@@ -66,7 +66,7 @@ namespace Cyphera
                 "ff1" or "ff3" or "ff31" => ProtectFpe(value, configuration),
                 "mask" => ProtectMask(value, configuration),
                 "hash" => ProtectHash(value, configuration),
-                _ => throw new ArgumentException($"Unknown engine: {configuration.Engine}")
+                _ => throw new ArgumentException($"unknown engine: {configuration.Engine}")
             };
         }
 
@@ -80,14 +80,15 @@ namespace Cyphera
             {
                 if (protectedValue.Length > header.Length && protectedValue.StartsWith(header))
                 {
-                    var configuration = GetConfiguration(_headerIndex[header]);
+                    var name = _headerIndex[header];
+                    var configuration = GetConfiguration(name);
                     // Strip the header here so AccessFpe always receives raw headerless ciphertext.
                     var stripped = protectedValue[header.Length..];
-                    return AccessFpe(stripped, configuration);
+                    return AccessWithConfiguration(stripped, configuration, name);
                 }
             }
 
-            throw new ArgumentException("No matching header found");
+            throw new ArgumentException("no matching header found");
         }
 
         // Escape-hatch access for unique situations where the protected value
@@ -102,6 +103,14 @@ namespace Cyphera
             if (configurationName == null)
                 throw new ArgumentException("Access(value, configurationName) requires a configuration name.");
             var configuration = GetConfiguration(configurationName);
+            return AccessWithConfiguration(protectedValue, configuration, configurationName);
+        }
+
+        private string AccessWithConfiguration(string protectedValue, Configuration configuration, string configurationName)
+        {
+            if (configuration.Engine == "mask" || configuration.Engine == "hash")
+                throw new ArgumentException(
+                    $"cannot reverse '{configurationName}' — {configuration.Engine} is irreversible");
             return AccessFpe(protectedValue, configuration);
         }
 
@@ -131,7 +140,7 @@ namespace Cyphera
 
             var (encryptable, positions, chars) = ExtractPassthroughs(value, alphabet);
             if (encryptable.Length == 0)
-                throw new ArgumentException("No encryptable characters in input");
+                throw new ArgumentException("no encryptable characters in input");
 
             string encrypted;
             if (configuration.Engine == "ff3")
@@ -164,8 +173,10 @@ namespace Cyphera
         // a headerless value.
         private string AccessFpe(string protectedValue, Configuration configuration)
         {
+            // Callers (AccessWithConfiguration) have already filtered mask/hash;
+            // anything else here that isn't an FPE engine is an internal misuse.
             if (configuration.Engine != "ff1" && configuration.Engine != "ff3" && configuration.Engine != "ff31")
-                throw new ArgumentException($"Cannot reverse '{configuration.Engine}' — not reversible");
+                throw new ArgumentException($"unknown engine: {configuration.Engine}");
 
             var key = ResolveKey(configuration.KeyRef);
             var alphabet = configuration.Alphabet;
@@ -198,7 +209,7 @@ namespace Cyphera
         private static string ProtectMask(string value, Configuration configuration)
         {
             if (string.IsNullOrEmpty(configuration.Pattern))
-                throw new ArgumentException("Mask configuration requires 'pattern'");
+                throw new ArgumentException("mask pattern required");
 
             int len = value.Length;
             return configuration.Pattern switch
@@ -248,16 +259,16 @@ namespace Cyphera
         private Configuration GetConfiguration(string name)
         {
             if (!_configurations.TryGetValue(name, out var configuration))
-                throw new ArgumentException($"Unknown configuration: {name}");
+                throw new ArgumentException($"configuration not found: {name}");
             return configuration;
         }
 
         private byte[] ResolveKey(string? keyRef)
         {
             if (string.IsNullOrEmpty(keyRef))
-                throw new ArgumentException("No key_ref in configuration");
+                throw new ArgumentException("key error: no key_ref in configuration");
             if (!_keys.TryGetValue(keyRef, out var key))
-                throw new ArgumentException($"Unknown key: {keyRef}");
+                throw new ArgumentException($"key error: unknown key '{keyRef}'");
             return key;
         }
 
@@ -321,7 +332,7 @@ namespace Cyphera
                 }
                 else
                 {
-                    throw new ArgumentException($"Key '{name}' must have either 'material' or 'source'");
+                    throw new ArgumentException($"key error: key '{name}' must have either 'material' or 'source'");
                 }
             }
         }
@@ -372,12 +383,12 @@ namespace Cyphera
                 string? header = p.TryGetProperty("header", out var hv) ? hv.GetString() : null;
 
                 if (headerEnabled && string.IsNullOrEmpty(header))
-                    throw new ArgumentException($"Configuration '{kv.Name}' has header_enabled=true but no header specified");
+                    throw new ArgumentException("configuration error: header must be specified");
 
                 if (headerEnabled && header != null)
                 {
                     if (_headerIndex.ContainsKey(header))
-                        throw new ArgumentException($"Header collision: '{header}' used by both '{_headerIndex[header]}' and '{kv.Name}'");
+                        throw new ArgumentException("configuration error: header collision");
                     _headerIndex[header] = kv.Name;
                 }
 

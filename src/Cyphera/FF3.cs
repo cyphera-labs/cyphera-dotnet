@@ -15,9 +15,9 @@ namespace Cyphera
         public FF3(byte[] key, byte[] tweak, string alphabet = "0123456789abcdefghijklmnopqrstuvwxyz")
         {
             if (key.Length != 16 && key.Length != 24 && key.Length != 32)
-                throw new ArgumentException("Key must be 16, 24, or 32 bytes");
+                throw new ArgumentException($"invalid key length: {key.Length} (expected 16, 24, or 32)");
             if (tweak.Length != 8)
-                throw new ArgumentException("Tweak must be exactly 8 bytes");
+                throw new ArgumentException($"invalid tweak length: {tweak.Length} (expected 8)");
             if (alphabet.Length < 2)
                 throw new ArgumentException("Alphabet must have >= 2 chars");
 
@@ -32,7 +32,17 @@ namespace Cyphera
         public string Encrypt(string plaintext) => FromDigits(FF3Encrypt(ToDigits(plaintext)));
         public string Decrypt(string ciphertext) => FromDigits(FF3Decrypt(ToDigits(ciphertext)));
 
-        private int[] ToDigits(string s) => s.Select(c => _charMap[c]).ToArray();
+        private int[] ToDigits(string s)
+        {
+            var d = new int[s.Length];
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (!_charMap.TryGetValue(s[i], out var idx))
+                    throw new ArgumentException($"invalid char '{s[i]}' at position {i}");
+                d[i] = idx;
+            }
+            return d;
+        }
         private string FromDigits(int[] d) => new string(d.Select(i => _alphabet[i]).ToArray());
 
         // NIST SP 800-38G: length >= 2, radix^length >= 1,000,000, and
@@ -175,7 +185,7 @@ namespace Cyphera
         public FF31(byte[] key, byte[] tweak, string alphabet = "0123456789abcdefghijklmnopqrstuvwxyz")
         {
             if (tweak.Length != 7)
-                throw new ArgumentException("FF3-1 tweak must be exactly 7 bytes (56 bits)");
+                throw new ArgumentException($"invalid tweak length: {tweak.Length} (expected 7)");
             _inner = new FF3(key, ExpandTweak(tweak), alphabet);
         }
 
