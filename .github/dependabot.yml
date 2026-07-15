@@ -1,11 +1,26 @@
+# Grouped: minor/patch bundle into one monthly PR per ecosystem; majors come individually for review.
 version: 2
 updates:
-  - package-ecosystem: "nuget"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
+- package-ecosystem: nuget
+  directory: /
+  schedule:
+    interval: monthly
+  open-pull-requests-limit: 5
+  groups:
+    nuget-minor-patch:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: monthly
+  groups:
+    github-actions-minor-patch:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
