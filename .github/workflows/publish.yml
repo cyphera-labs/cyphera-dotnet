@@ -24,3 +24,27 @@ jobs:
         with:
           user: lgutschow
       - run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+  sbom:
+    name: SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with: { dotnet-version: "8.0.x" }
+      - name: Install CycloneDX SBOM generator
+        run: |
+          dotnet tool install --global CycloneDX --version 6.2.0
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - run: dotnet CycloneDX Cyphera.sln -o . -F Json -fn cyphera-dotnet-${{ github.ref_name }}-sbom.cyclonedx.json
+      - uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: cyphera-dotnet-${{ github.ref_name }}-sbom.spdx.json
+          syft-version: v1.54.0
+          upload-artifact: false
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: cyphera-dotnet-*-sbom.*.json
